@@ -142,35 +142,6 @@ export const Login: React.FC = () => {
             {loading ? 'ĐANG KẾT NỐI HỆ THỐNG...' : 'ĐĂNG NHẬP HỆ THỐNG'}
           </button>
         </form>
-
-        <div className="demo-accounts">
-          <div className="demo-title">
-            <Sparkles size={12} style={{ marginRight: '4px', verticalAlign: 'middle', display: 'inline-block' }} />
-            Tài khoản dùng thử (Click để vào nhanh)
-          </div>
-          <div className="demo-buttons-grid">
-            {demoAccounts.map((acc, index) => (
-              <button
-                key={index}
-                className="demo-btn"
-                onClick={() => handleDemoLogin(acc.username, acc.pass)}
-                disabled={loading}
-                title={`Đăng nhập nhanh với vai trò ${acc.label}`}
-                style={{ gridColumn: index === 0 ? 'span 2' : 'span 1' }}
-              >
-                <img src={acc.avatar} alt={acc.label} className="demo-avatar" />
-                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text)' }}>
-                    {acc.label}
-                  </span>
-                  <span style={{ fontSize: '0.55rem', opacity: 0.7, fontFamily: 'var(--font-tech)' }}>
-                    pass: {acc.pass}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
