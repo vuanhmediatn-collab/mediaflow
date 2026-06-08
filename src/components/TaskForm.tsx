@@ -29,10 +29,17 @@ export const TaskForm: React.FC<TaskFormProps> = ({ task, onClose }) => {
 
   useEffect(() => {
     const loadFormData = async () => {
-      const allProjects = await LocalDB.getProjects();
-      const allUsers = await LocalDB.getUsers();
+      let allProjects = await LocalDB.getProjects();
+      if (allProjects.length === 0) {
+        allProjects = LocalDB.getProjectsSync();
+      }
+      let allUsers = await LocalDB.getUsers();
+      if (allUsers.length === 0) {
+        allUsers = LocalDB.getUsersSync();
+      }
       setProjects(allProjects);
-      setUsers(allUsers.filter(u => u.role === 'staff'));
+      const staff = allUsers.filter(u => u.role === 'staff');
+      setUsers(staff);
 
       if (task) {
         // Edit Mode - seed values
@@ -46,9 +53,17 @@ export const TaskForm: React.FC<TaskFormProps> = ({ task, onClose }) => {
         setChecklistItems(task.checklist);
       } else {
         // Create Mode - set defaults
-        if (allProjects.length > 0) setProjectId(allProjects[0].id);
+        if (allProjects.length > 0) {
+          setProjectId(allProjects[0].id);
+        } else {
+          setProjectId('');
+        }
         const staff = allUsers.filter(u => u.role === 'staff');
-        if (staff.length > 0) setAssigneeId(staff[0].id);
+        if (staff.length > 0) {
+          setAssigneeId(staff[0].id);
+        } else {
+          setAssigneeId('');
+        }
         
         // Default deadline: 3 days from now
         const inThreeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -197,10 +212,16 @@ export const TaskForm: React.FC<TaskFormProps> = ({ task, onClose }) => {
                   onChange={(e) => setProjectId(e.target.value)}
                   required
                 >
+                  <option value="" disabled>-- Chọn dự án --</option>
                   {projects.map(p => (
                     <option key={p.id} value={p.id}>{p.name} ({p.client})</option>
                   ))}
                 </select>
+                {projects.length === 0 && (
+                  <span style={{ color: 'var(--priority-urgent)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                    Chưa có dự án nào. Hãy vào mục 'Dự án / Khách' để tạo dự án trước.
+                  </span>
+                )}
               </div>
 
               <div className="form-group">
@@ -212,10 +233,16 @@ export const TaskForm: React.FC<TaskFormProps> = ({ task, onClose }) => {
                   onChange={(e) => setAssigneeId(e.target.value)}
                   required
                 >
+                  <option value="" disabled>-- Chọn người phụ trách --</option>
                   {users.map(u => (
                     <option key={u.id} value={u.id}>{u.fullName} ({u.position})</option>
                   ))}
                 </select>
+                {users.length === 0 && (
+                  <span style={{ color: 'var(--priority-urgent)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                    Chưa có nhân sự nào.
+                  </span>
+                )}
               </div>
             </div>
 
