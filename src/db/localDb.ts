@@ -405,6 +405,11 @@ const DEFAULT_TASKS: Task[] = [
 ];
 
 export class LocalDB {
+  static dbWriteBlocked: boolean = false;
+  private static useSupabase(): boolean {
+    return isSupabaseConfigured && !this.dbWriteBlocked;
+  }
+
   static shouldBeAdmin(u: User): boolean {
     if (!u) return false;
     const username = (u.username || '').toLowerCase();
@@ -512,10 +517,11 @@ export class LocalDB {
   }
 
   static async getUsers(): Promise<User[]> {
-    if (isSupabaseConfigured) {
+    if (this.useSupabase()) {
       try {
         const { data, error } = await supabase.from('users').select('*');
         if (error) throw error;
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(data));
         return data as User[];
       } catch (err) {
         console.error('Supabase getUsers error:', err);
@@ -537,6 +543,7 @@ export class LocalDB {
         return user;
       } catch (err) {
         console.error('Supabase saveUser error:', err);
+        LocalDB.dbWriteBlocked = true;
       }
     }
     return new Promise((resolve) => {
@@ -562,7 +569,11 @@ export class LocalDB {
         return true;
       } catch (err) {
         console.error('Supabase deleteUser error:', err);
-        return false;
+        LocalDB.dbWriteBlocked = true;
+        const users = this.getUsersSync();
+        const filtered = users.filter(u => u.id !== id);
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(filtered));
+        return true;
       }
     }
     return new Promise((resolve) => {
@@ -581,10 +592,11 @@ export class LocalDB {
   }
 
   static async getProjects(): Promise<Project[]> {
-    if (isSupabaseConfigured) {
+    if (this.useSupabase()) {
       try {
         const { data, error } = await supabase.from('projects').select('*').order('name', { ascending: true });
         if (error) throw error;
+        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(data));
         return data as Project[];
       } catch (err) {
         console.error('Supabase getProjects error:', err);
@@ -606,6 +618,7 @@ export class LocalDB {
         return project;
       } catch (err) {
         console.error('Supabase saveProject error:', err);
+        LocalDB.dbWriteBlocked = true;
       }
     }
     return new Promise((resolve) => {
@@ -631,7 +644,11 @@ export class LocalDB {
         return true;
       } catch (err) {
         console.error('Supabase deleteProject error:', err);
-        return false;
+        LocalDB.dbWriteBlocked = true;
+        const projects = this.getProjectsSync();
+        const filtered = projects.filter(p => p.id !== id);
+        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(filtered));
+        return true;
       }
     }
     return new Promise((resolve) => {
@@ -650,7 +667,7 @@ export class LocalDB {
   }
 
   static async getTasks(): Promise<Task[]> {
-    if (isSupabaseConfigured) {
+    if (this.useSupabase()) {
       try {
         const { data, error } = await supabase
           .from('tasks')
@@ -692,6 +709,7 @@ export class LocalDB {
           return task;
         });
 
+        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(updatedTasks));
         return updatedTasks;
       } catch (err) {
         console.error('Supabase getTasks error, falling back to local:', err);
@@ -704,7 +722,7 @@ export class LocalDB {
   }
 
   static async getTaskById(id: string): Promise<Task | null> {
-    if (isSupabaseConfigured) {
+    if (this.useSupabase()) {
       try {
         const { data, error } = await supabase.from('tasks').select('*').eq('id', id).single();
         if (error) throw error;
@@ -784,6 +802,7 @@ export class LocalDB {
         return finalTask;
       } catch (err) {
         console.error('Supabase saveTask error:', err);
+        LocalDB.dbWriteBlocked = true;
       }
     }
 
@@ -854,7 +873,11 @@ export class LocalDB {
         return true;
       } catch (err) {
         console.error('Supabase deleteTask error:', err);
-        return false;
+        LocalDB.dbWriteBlocked = true;
+        const tasks = this.getTasksSync();
+        const filtered = tasks.filter(t => t.id !== id);
+        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(filtered));
+        return true;
       }
     }
     return new Promise((resolve) => {
