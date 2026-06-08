@@ -405,6 +405,20 @@ const DEFAULT_TASKS: Task[] = [
 ];
 
 export class LocalDB {
+  static shouldBeAdmin(u: User): boolean {
+    if (!u) return false;
+    const username = (u.username || '').toLowerCase();
+    const fullName = (u.fullName || '').toLowerCase();
+    const position = (u.position || '').toLowerCase();
+
+    if (u.id === 'u-1') return true;
+    if (username === 'admin') return true;
+    if (fullName.includes('director') || fullName.includes('giám đốc')) return true;
+    if (position.includes('giám đốc') || position.includes('founder') || position.includes('director')) return true;
+
+    return false;
+  }
+
   static init() {
     // 1. Initialize local storage keys if they don't exist
     if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
@@ -417,18 +431,19 @@ export class LocalDB {
       localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(DEFAULT_TASKS));
     }
 
-    // 2. Self-healing check: ensure admin user (u-1) and 'admin' username always have 'admin' role in LocalStorage
+    // 2. Self-healing check: ensure admin user and 'admin' username always have 'admin' role in LocalStorage
     try {
       const storedUsersRaw = localStorage.getItem(STORAGE_KEYS.USERS);
       if (storedUsersRaw) {
         const storedUsers: User[] = JSON.parse(storedUsersRaw);
         let updated = false;
 
-        const adminUser = storedUsers.find(u => u.id === 'u-1' || u.username === 'admin');
-        if (adminUser && adminUser.role !== 'admin') {
-          adminUser.role = 'admin';
-          updated = true;
-        }
+        storedUsers.forEach(u => {
+          if (this.shouldBeAdmin(u) && u.role !== 'admin') {
+            u.role = 'admin';
+            updated = true;
+          }
+        });
 
         if (updated) {
           localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(storedUsers));
@@ -442,8 +457,8 @@ export class LocalDB {
     try {
       const activeSessionRaw = localStorage.getItem('mediaflow_session');
       if (activeSessionRaw) {
-        const activeSession = JSON.parse(activeSessionRaw);
-        if ((activeSession.id === 'u-1' || activeSession.username === 'admin') && activeSession.role !== 'admin') {
+        const activeSession = JSON.parse(activeSessionRaw) as User;
+        if (this.shouldBeAdmin(activeSession) && activeSession.role !== 'admin') {
           activeSession.role = 'admin';
           localStorage.setItem('mediaflow_session', JSON.stringify(activeSession));
         }
@@ -865,6 +880,10 @@ export class LocalDB {
         if (data && data.length > 0) {
           const matchedUser = data[0] as User;
           if (matchedUser.passwordHash === hashPassword(passwordPlain)) {
+            if (this.shouldBeAdmin(matchedUser) && matchedUser.role !== 'admin') {
+              matchedUser.role = 'admin';
+              await supabase.from('users').update({ role: 'admin' }).eq('id', matchedUser.id);
+            }
             return matchedUser;
           }
         }
@@ -877,12 +896,20 @@ export class LocalDB {
     return new Promise((resolve) => {
       setTimeout(() => {
         const users = this.getUsersSync();
-        const matchedUser = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-        if (matchedUser && matchedUser.passwordHash === hashPassword(passwordPlain)) {
-          resolve(matchedUser);
-        } else {
-          resolve(null);
+        const matchedIndex = users.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+        if (matchedIndex > -1) {
+          const matchedUser = users[matchedIndex];
+          if (matchedUser.passwordHash === hashPassword(passwordPlain)) {
+            if (this.shouldBeAdmin(matchedUser) && matchedUser.role !== 'admin') {
+              matchedUser.role = 'admin';
+              users[matchedIndex] = matchedUser;
+              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+            }
+            resolve(matchedUser);
+            return;
+          }
         }
+        resolve(null);
       }, 300);
     });
   }
