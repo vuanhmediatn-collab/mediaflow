@@ -475,6 +475,38 @@ export class LocalDB {
     if (isSupabaseConfigured) {
       // Background Supabase self-healing for admin role & default position
       supabase.from('users').update({ role: 'admin', position: 'Giám đốc / Founder' }).eq('id', 'u-1').then(() => {});
+
+      // Seed default data if Supabase tables are empty
+      const seedSupabaseIfEmpty = async () => {
+        try {
+          // Check projects
+          const { data: projectsData, error: projectsErr } = await supabase.from('projects').select('id').limit(1);
+          if (projectsErr) throw projectsErr;
+          if (!projectsData || projectsData.length === 0) {
+            const { error: seedErr } = await supabase.from('projects').upsert(DEFAULT_PROJECTS);
+            if (seedErr) throw seedErr;
+          }
+
+          // Check users
+          const { data: usersData, error: usersErr } = await supabase.from('users').select('id').limit(1);
+          if (usersErr) throw usersErr;
+          if (!usersData || usersData.length === 0) {
+            const { error: seedErr } = await supabase.from('users').upsert(DEFAULT_USERS);
+            if (seedErr) throw seedErr;
+          }
+
+          // Check tasks
+          const { data: tasksData, error: tasksErr } = await supabase.from('tasks').select('id').limit(1);
+          if (tasksErr) throw tasksErr;
+          if (!tasksData || tasksData.length === 0) {
+            const { error: seedErr } = await supabase.from('tasks').upsert(DEFAULT_TASKS);
+            if (seedErr) throw seedErr;
+          }
+        } catch (err) {
+          console.error('Error seeding default data to Supabase:', err);
+        }
+      };
+      seedSupabaseIfEmpty();
     } else {
       this.checkAndUpdateOverdueTasks();
     }
