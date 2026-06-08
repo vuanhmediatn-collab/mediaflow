@@ -5,7 +5,7 @@ export interface User {
   username: string;
   fullName: string;
   role: 'admin' | 'staff';
-  position: 'Editor' | 'Cameraman' | 'TikTok' | 'Biên tập nội dung' | '';
+  position: string;
   avatar: string;
   passwordHash: string; // Base64 simple representation for presentation
 }
@@ -93,7 +93,7 @@ const DEFAULT_USERS: User[] = [
     username: 'admin',
     fullName: 'Vũ Thế Anh (Director)',
     role: 'admin',
-    position: '',
+    position: 'Giám đốc / Founder',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     passwordHash: hashPassword('admin123')
   },
@@ -406,16 +406,56 @@ const DEFAULT_TASKS: Task[] = [
 
 export class LocalDB {
   static init() {
-    if (!isSupabaseConfigured) {
-      if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
+    // 1. Initialize local storage keys if they don't exist
+    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.PROJECTS)) {
+      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(DEFAULT_PROJECTS));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.TASKS)) {
+      localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(DEFAULT_TASKS));
+    }
+
+    // 2. Self-healing check: ensure admin user (u-1) and 'admin' username always have 'admin' role in LocalStorage
+    try {
+      const storedUsersRaw = localStorage.getItem(STORAGE_KEYS.USERS);
+      if (storedUsersRaw) {
+        const storedUsers: User[] = JSON.parse(storedUsersRaw);
+        let updated = false;
+
+        const adminUser = storedUsers.find(u => u.id === 'u-1' || u.username === 'admin');
+        if (adminUser && adminUser.role !== 'admin') {
+          adminUser.role = 'admin';
+          updated = true;
+        }
+
+        if (updated) {
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(storedUsers));
+        }
       }
-      if (!localStorage.getItem(STORAGE_KEYS.PROJECTS)) {
-        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(DEFAULT_PROJECTS));
+    } catch (e) {
+      console.error('Self-healing JSON parsing error:', e);
+    }
+
+    // 3. Self-healing check for active session in LocalStorage
+    try {
+      const activeSessionRaw = localStorage.getItem('mediaflow_session');
+      if (activeSessionRaw) {
+        const activeSession = JSON.parse(activeSessionRaw);
+        if ((activeSession.id === 'u-1' || activeSession.username === 'admin') && activeSession.role !== 'admin') {
+          activeSession.role = 'admin';
+          localStorage.setItem('mediaflow_session', JSON.stringify(activeSession));
+        }
       }
-      if (!localStorage.getItem(STORAGE_KEYS.TASKS)) {
-        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(DEFAULT_TASKS));
-      }
+    } catch (e) {
+      console.error('Self-healing session error:', e);
+    }
+
+    if (isSupabaseConfigured) {
+      // Background Supabase self-healing for admin role & default position
+      supabase.from('users').update({ role: 'admin', position: 'Giám đốc / Founder' }).eq('id', 'u-1').then(() => {});
+    } else {
       this.checkAndUpdateOverdueTasks();
     }
   }

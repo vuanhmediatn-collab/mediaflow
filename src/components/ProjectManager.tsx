@@ -187,7 +187,7 @@ export const ProjectManager: React.FC = () => {
         <div className="modal-backdrop" onClick={handleCloseForm}>
           <div 
             className="liquid-glass modal-container hud-corner-ticks" 
-            style={{ background: 'rgba(255, 255, 255, 0.7)', maxWidth: '500px' }}
+            style={{ maxWidth: '500px' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div 

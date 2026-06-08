@@ -15,7 +15,7 @@ export const MemberManager: React.FC = () => {
   // User form fields
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
-  const [position, setPosition] = useState<'Editor' | 'Cameraman' | 'TikTok' | 'Biên tập nội dung'>('Editor');
+  const [position, setPosition] = useState<string>('Editor');
   const [avatar, setAvatar] = useState('');
   const [password, setPassword] = useState('');
 
@@ -40,7 +40,7 @@ export const MemberManager: React.FC = () => {
       setSelectedUser(user);
       setFullName(user.fullName);
       setUsername(user.username);
-      setPosition(user.position as any || 'Editor');
+      setPosition(user.position || (user.role === 'admin' ? 'Giám đốc' : 'Editor'));
       setAvatar(user.avatar);
       setPassword(''); // Password cannot be edited from this form directly for existing users
     } else {
@@ -89,7 +89,7 @@ export const MemberManager: React.FC = () => {
       id: selectedUser ? selectedUser.id : 'u-' + Math.random().toString(36).substr(2, 9),
       username: username.trim().toLowerCase(),
       fullName: fullName.trim(),
-      role: 'staff', // Only creating staff accounts here, admin is seeded
+      role: selectedUser ? selectedUser.role : 'staff', // Retain admin role when editing
       position,
       avatar: finalAvatar,
       passwordHash: selectedUser 
@@ -174,7 +174,7 @@ export const MemberManager: React.FC = () => {
                 <div>
                   <h3 className="member-name">{user.fullName}</h3>
                   <span className="member-position">
-                    {user.role === 'admin' ? '🔥 Quản lý (Admin)' : `🎬 ${user.position}`}
+                    {user.role === 'admin' ? `🔥 ${user.position || 'Giám đốc (Admin)'}` : `🎬 ${user.position}`}
                   </span>
                 </div>
 
@@ -242,7 +242,7 @@ export const MemberManager: React.FC = () => {
         <div className="modal-backdrop" onClick={handleCloseUserForm}>
           <div 
             className="liquid-glass modal-container hud-corner-ticks" 
-            style={{ background: 'rgba(255, 255, 255, 0.7)', maxWidth: '500px' }}
+            style={{ maxWidth: '500px' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div 
@@ -295,17 +295,28 @@ export const MemberManager: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label" htmlFor="pos">Bộ phận chuyên môn</label>
+                  <label className="form-label" htmlFor="pos">Bộ phận chuyên môn / Chức vụ</label>
                   <select 
                     id="pos" 
                     className="glass-input glass-select"
                     value={position}
-                    onChange={(e) => setPosition(e.target.value as any)}
+                    onChange={(e) => setPosition(e.target.value)}
                   >
-                    <option value="Editor">Editor (Dựng phim)</option>
-                    <option value="Cameraman">Cameraman (Quay phim)</option>
-                    <option value="TikTok">TikTok / Social Media</option>
-                    <option value="Biên tập nội dung">Biên tập nội dung (Content)</option>
+                    {selectedUser && selectedUser.role === 'admin' ? (
+                      <>
+                        <option value="Giám đốc">Giám đốc (Director)</option>
+                        <option value="Quản lý">Quản lý (Manager)</option>
+                        <option value="Tổng giám đốc">Tổng giám đốc (General Director)</option>
+                        <option value="Founder">Founder (Sáng lập viên)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Editor">Editor (Dựng phim)</option>
+                        <option value="Cameraman">Cameraman (Quay phim)</option>
+                        <option value="TikTok">TikTok / Social Media</option>
+                        <option value="Biên tập nội dung">Biên tập nội dung (Content)</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>
@@ -364,7 +375,7 @@ export const MemberManager: React.FC = () => {
         <div className="modal-backdrop" onClick={handleClosePasswordModal}>
           <div 
             className="liquid-glass modal-container hud-corner-ticks" 
-            style={{ background: 'rgba(255, 255, 255, 0.7)', maxWidth: '400px' }}
+            style={{ maxWidth: '400px' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div 

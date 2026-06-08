@@ -229,7 +229,7 @@ export const UserProfile: React.FC = () => {
                     letterSpacing: '0.05em' 
                   }}
                 >
-                  {currentUser.role === 'admin' ? 'SYSTEM DIRECTOR / ADMIN' : currentUser.position}
+                  {currentUser.role === 'admin' ? (currentUser.position || 'SYSTEM DIRECTOR / ADMIN') : currentUser.position}
                 </span>
               </div>
             </div>

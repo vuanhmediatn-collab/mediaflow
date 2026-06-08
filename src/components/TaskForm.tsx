@@ -131,7 +131,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({ task, onClose }) => {
     <div className="modal-backdrop" onClick={onClose}>
       <div 
         className="liquid-glass modal-container hud-corner-ticks" 
-        style={{ background: 'rgba(255, 255, 255, 0.7)', maxWidth: '620px' }}
+        style={{ maxWidth: '620px' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div 
