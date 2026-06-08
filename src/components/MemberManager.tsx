@@ -59,6 +59,25 @@ export const MemberManager: React.FC = () => {
     setSelectedUser(null);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (file.size > 1024 * 1024) {
+      alert('Ảnh quá lớn, vui lòng chọn ảnh dưới 1MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result) {
+        setAvatar(reader.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !username.trim()) return;
@@ -336,6 +355,17 @@ export const MemberManager: React.FC = () => {
                 </div>
               )}
 
+              {avatar && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                  <img 
+                    src={avatar} 
+                    alt="Preview" 
+                    style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent)' }} 
+                  />
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Xem trước ảnh đại diện</span>
+                </div>
+              )}
+
               <div className="form-group">
                 <label className="form-label" htmlFor="avatarUrl">Link ảnh đại diện (Tùy chọn)</label>
                 <input 
@@ -346,6 +376,18 @@ export const MemberManager: React.FC = () => {
                   value={avatar}
                   onChange={(e) => setAvatar(e.target.value)}
                 />
+              </div>
+
+              <div className="form-group" style={{ marginTop: '8px' }}>
+                <label className="glass-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                  📁 Tải ảnh từ máy
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    style={{ display: 'none' }} 
+                    onChange={handleFileChange}
+                  />
+                </label>
               </div>
 
               <div 
