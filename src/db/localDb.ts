@@ -1,3 +1,5 @@
+import { supabase, isSupabaseConfigured } from './supabaseClient';
+
 export interface User {
   id: string;
   username: string;
@@ -404,18 +406,18 @@ const DEFAULT_TASKS: Task[] = [
 
 export class LocalDB {
   static init() {
-    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
+    if (!isSupabaseConfigured) {
+      if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
+      }
+      if (!localStorage.getItem(STORAGE_KEYS.PROJECTS)) {
+        localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(DEFAULT_PROJECTS));
+      }
+      if (!localStorage.getItem(STORAGE_KEYS.TASKS)) {
+        localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(DEFAULT_TASKS));
+      }
+      this.checkAndUpdateOverdueTasks();
     }
-    if (!localStorage.getItem(STORAGE_KEYS.PROJECTS)) {
-      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(DEFAULT_PROJECTS));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.TASKS)) {
-      localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(DEFAULT_TASKS));
-    }
-    
-    // Auto check for overdue tasks and update status
-    this.checkAndUpdateOverdueTasks();
   }
 
   private static checkAndUpdateOverdueTasks() {
@@ -451,11 +453,20 @@ export class LocalDB {
 
   // --- USERS CRUD ---
   static getUsersSync(): User[] {
-    this.init();
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
   }
 
   static async getUsers(): Promise<User[]> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('users').select('*');
+        if (error) throw error;
+        return data as User[];
+      } catch (err) {
+        console.error('Supabase getUsers error:', err);
+        return this.getUsersSync();
+      }
+    }
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve(this.getUsersSync());
@@ -464,6 +475,15 @@ export class LocalDB {
   }
 
   static async saveUser(user: User): Promise<User> {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('users').upsert(user);
+        if (error) throw error;
+        return user;
+      } catch (err) {
+        console.error('Supabase saveUser error:', err);
+      }
+    }
     return new Promise((resolve) => {
       setTimeout(() => {
         const users = this.getUsersSync();
@@ -480,6 +500,16 @@ export class LocalDB {
   }
 
   static async deleteUser(id: string): Promise<boolean> {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('users').delete().eq('id', id);
+        if (error) throw error;
+        return true;
+      } catch (err) {
+        console.error('Supabase deleteUser error:', err);
+        return false;
+      }
+    }
     return new Promise((resolve) => {
       setTimeout(() => {
         const users = this.getUsersSync();
@@ -492,11 +522,20 @@ export class LocalDB {
 
   // --- PROJECTS CRUD ---
   static getProjectsSync(): Project[] {
-    this.init();
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.PROJECTS) || '[]');
   }
 
   static async getProjects(): Promise<Project[]> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('projects').select('*').order('name', { ascending: true });
+        if (error) throw error;
+        return data as Project[];
+      } catch (err) {
+        console.error('Supabase getProjects error:', err);
+        return this.getProjectsSync();
+      }
+    }
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve(this.getProjectsSync());
@@ -505,6 +544,15 @@ export class LocalDB {
   }
 
   static async saveProject(project: Project): Promise<Project> {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('projects').upsert(project);
+        if (error) throw error;
+        return project;
+      } catch (err) {
+        console.error('Supabase saveProject error:', err);
+      }
+    }
     return new Promise((resolve) => {
       setTimeout(() => {
         const projects = this.getProjectsSync();
@@ -521,6 +569,16 @@ export class LocalDB {
   }
 
   static async deleteProject(id: string): Promise<boolean> {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('projects').delete().eq('id', id);
+        if (error) throw error;
+        return true;
+      } catch (err) {
+        console.error('Supabase deleteProject error:', err);
+        return false;
+      }
+    }
     return new Promise((resolve) => {
       setTimeout(() => {
         const projects = this.getProjectsSync();
@@ -533,20 +591,73 @@ export class LocalDB {
 
   // --- TASKS CRUD ---
   static getTasksSync(): Task[] {
-    this.init();
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.TASKS) || '[]');
   }
 
   static async getTasks(): Promise<Task[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        this.checkAndUpdateOverdueTasks();
-        resolve(this.getTasksSync());
-      }, 200);
-    });
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .order('createdAt', { ascending: false });
+        
+        if (error) throw error;
+
+        // Auto check for overdue tasks and update status dynamically
+        const today = new Date().toISOString().split('T')[0];
+        const updatedTasks = (data as Task[]).map(task => {
+          if (
+            task.status !== 'Hoàn thành' &&
+            task.status !== 'Trễ hạn' &&
+            task.deadline < today
+          ) {
+            const systemLog: TaskLog = {
+              id: 'l-sys-' + Math.random().toString(36).substr(2, 9),
+              text: `Hệ thống tự động phát hiện trễ deadline - Đổi trạng thái từ ${task.status} sang Trễ hạn`,
+              createdAt: new Date().toISOString()
+            };
+            const newTask = {
+              ...task,
+              status: 'Trễ hạn' as TaskStatus,
+              logs: [...task.logs, systemLog]
+            };
+            
+            // Fire-and-forget update in background
+            supabase
+              .from('tasks')
+              .update({ status: 'Trễ hạn', logs: newTask.logs })
+              .eq('id', task.id)
+              .then(({ error: updateErr }) => {
+                if (updateErr) console.error('Failed to auto update task status', updateErr);
+              });
+
+            return newTask;
+          }
+          return task;
+        });
+
+        return updatedTasks;
+      } catch (err) {
+        console.error('Supabase getTasks error, falling back to local:', err);
+        return this.getTasksSync();
+      }
+    } else {
+      this.checkAndUpdateOverdueTasks();
+      return this.getTasksSync();
+    }
   }
 
   static async getTaskById(id: string): Promise<Task | null> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('tasks').select('*').eq('id', id).single();
+        if (error) throw error;
+        return data as Task;
+      } catch (err) {
+        console.error('Supabase getTaskById error:', err);
+      }
+    }
     return new Promise((resolve) => {
       setTimeout(() => {
         const tasks = this.getTasksSync();
@@ -557,6 +668,70 @@ export class LocalDB {
   }
 
   static async saveTask(task: Task, actorName: string): Promise<Task> {
+    if (isSupabaseConfigured) {
+      try {
+        const now = new Date().toISOString();
+        let finalTask = { ...task };
+
+        // Fetch old task to compare and write log entries
+        const { data: oldTaskData } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('id', task.id)
+          .maybeSingle();
+
+        if (oldTaskData) {
+          const oldTask = oldTaskData as Task;
+          const logs = [...finalTask.logs];
+
+          if (oldTask.status !== finalTask.status) {
+            logs.push({
+              id: 'l-' + Math.random().toString(36).substr(2, 9),
+              text: `Trạng thái chuyển sang "${finalTask.status}" bởi ${actorName}`,
+              createdAt: now
+            });
+          }
+          if (oldTask.assigneeId !== finalTask.assigneeId) {
+            const users = await this.getUsers();
+            const assignee = users.find(u => u.id === finalTask.assigneeId);
+            logs.push({
+              id: 'l-' + Math.random().toString(36).substr(2, 9),
+              text: `Được giao cho ${assignee ? assignee.fullName : 'không rõ'} bởi ${actorName}`,
+              createdAt: now
+            });
+          }
+
+          finalTask.logs = logs;
+        } else {
+          // New task
+          finalTask.createdAt = now;
+          finalTask.logs = [
+            {
+              id: 'l-' + Math.random().toString(36).substr(2, 9),
+              text: `Công việc được tạo bởi ${actorName}`,
+              createdAt: now
+            }
+          ];
+
+          const users = await this.getUsers();
+          const assignee = users.find(u => u.id === finalTask.assigneeId);
+          if (assignee) {
+            finalTask.logs.push({
+              id: 'l-' + Math.random().toString(36).substr(2, 9),
+              text: `Được giao cho ${assignee.fullName} bởi ${actorName}`,
+              createdAt: now
+            });
+          }
+        }
+
+        const { error } = await supabase.from('tasks').upsert(finalTask);
+        if (error) throw error;
+        return finalTask;
+      } catch (err) {
+        console.error('Supabase saveTask error:', err);
+      }
+    }
+
     return new Promise((resolve) => {
       setTimeout(() => {
         const tasks = this.getTasksSync();
@@ -569,7 +744,6 @@ export class LocalDB {
           const oldTask = tasks[existingIndex];
           const logs = [...finalTask.logs];
           
-          // Log key changes automatically
           if (oldTask.status !== finalTask.status) {
             logs.push({
               id: 'l-' + Math.random().toString(36).substr(2, 9),
@@ -590,7 +764,6 @@ export class LocalDB {
           finalTask.logs = logs;
           tasks[existingIndex] = finalTask;
         } else {
-          // New task
           finalTask.createdAt = now;
           finalTask.logs = [
             {
@@ -619,6 +792,16 @@ export class LocalDB {
   }
 
   static async deleteTask(id: string): Promise<boolean> {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('tasks').delete().eq('id', id);
+        if (error) throw error;
+        return true;
+      } catch (err) {
+        console.error('Supabase deleteTask error:', err);
+        return false;
+      }
+    }
     return new Promise((resolve) => {
       setTimeout(() => {
         const tasks = this.getTasksSync();
@@ -631,6 +814,26 @@ export class LocalDB {
 
   // Helper authentication method
   static async authenticate(username: string, passwordPlain: string): Promise<User | null> {
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('username', username.toLowerCase());
+          
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const matchedUser = data[0] as User;
+          if (matchedUser.passwordHash === hashPassword(passwordPlain)) {
+            return matchedUser;
+          }
+        }
+        return null;
+      } catch (err) {
+        console.error('Supabase authenticate error:', err);
+      }
+    }
+
     return new Promise((resolve) => {
       setTimeout(() => {
         const users = this.getUsersSync();
